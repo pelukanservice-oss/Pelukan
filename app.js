@@ -328,9 +328,9 @@ function renderFichas() {
   }
 }
 
-document.getElementById("btn-new-ficha").addEventListener("click", openNewFichaModal);
+document.getElementById("btn-new-ficha").addEventListener("click", () => openNewFichaModal());
 
-function openNewFichaModal() {
+function openNewFichaModal(onCreated) {
   const existingOwners = [...new Map(fichasCache.map((p) => [p.pet_owners.id, p.pet_owners])).values()];
   openModal(`
     <h3>Nueva ficha</h3>
@@ -381,10 +381,10 @@ function openNewFichaModal() {
   });
 
   document.getElementById("ficha-cancel").addEventListener("click", closeModal);
-  document.getElementById("ficha-form").addEventListener("submit", submitNewFicha);
+  document.getElementById("ficha-form").addEventListener("submit", (e) => submitNewFicha(e, onCreated));
 }
 
-async function submitNewFicha(e) {
+async function submitNewFicha(e, onCreated) {
   e.preventDefault();
   const errorEl = document.getElementById("ficha-form-error");
   errorEl.hidden = true;
@@ -464,8 +464,12 @@ async function submitNewFicha(e) {
     return;
   }
 
-  closeModal();
   await loadFichas();
+  if (onCreated) {
+    onCreated(petId);
+  } else {
+    closeModal();
+  }
 }
 
 // ---- Aprobar / rechazar fichas nuevas pendientes (solo dueño) ----
@@ -962,7 +966,7 @@ document.getElementById("appointments-list").addEventListener("click", async (e)
 
 document.getElementById("btn-new-appointment").addEventListener("click", openNewAppointmentModal);
 
-function openNewAppointmentModal() {
+function openNewAppointmentModal(preselectPetId) {
   const approvedPets = fichasCache.filter((p) => p.review_status === "approved");
   const activeServices = servicesCache.filter((s) => s.active);
   const defaultDate = selectedDate.toISOString().slice(0, 10);
@@ -973,8 +977,9 @@ function openNewAppointmentModal() {
       <label>Mascota
         <select id="appt-pet" required>
           <option value="">— Selecciona —</option>
-          ${approvedPets.map((p) => `<option value="${p.id}">${escapeHtml(p.name)} (${escapeHtml(p.pet_owners?.full_name ?? "")})</option>`).join("")}
+          ${approvedPets.map((p) => `<option value="${p.id}" ${p.id === preselectPetId ? "selected" : ""}>${escapeHtml(p.name)} (${escapeHtml(p.pet_owners?.full_name ?? "")})</option>`).join("")}
         </select>
+        <button type="button" class="btn-link" id="appt-new-pet-btn" style="align-self:flex-start;margin-top:4px">+ Es un perrito nuevo, sin ficha</button>
       </label>
       <label>Servicio
         <select id="appt-service" required>
@@ -999,6 +1004,10 @@ function openNewAppointmentModal() {
       </div>
     </form>
   `);
+
+  document.getElementById("appt-new-pet-btn").addEventListener("click", () => {
+    openNewFichaModal((newPetId) => openNewAppointmentModal(newPetId));
+  });
 
   const serviceSelect = document.getElementById("appt-service");
   serviceSelect.addEventListener("change", () => {
