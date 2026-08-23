@@ -146,6 +146,7 @@ async function bootAfterLogin() {
   document.getElementById("main-screen").hidden = false;
 
   await Promise.all([loadFichas(), loadServices(), loadGroomers(), loadAppointments(), loadTransactions()]);
+  renderGroomers();
 }
 
 // Si ya había una sesión abierta (recargaste la página), entra directo
@@ -166,6 +167,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     document.getElementById("view-" + btn.dataset.view).hidden = false;
     if (btn.dataset.view === "calendario") loadAppointments();
     if (btn.dataset.view === "finanzas") loadTransactions();
+    if (btn.dataset.view === "personal") loadGroomers().then(renderGroomers);
   });
 });
 
@@ -997,6 +999,94 @@ function openNewTransactionModal() {
     await loadTransactions();
   });
 }
+
+// ============================================================
+// PERSONAL
+// ============================================================
+
+function renderGroomers() {
+  const list = document.getElementById("groomers-list");
+  if (groomersCache.length === 0) {
+    list.innerHTML = '<p class="coming-soon">Todavía no has dado de alta a ningún groomer.</p>';
+    return;
+  }
+  list.innerHTML = groomersCache
+    .map(
+      (g) => `
+      <div class="card">
+        <div class="card-main"><strong>${escapeHtml(g.full_name)}</strong> <span class="card-meta">Groomer</span></div>
+        <div class="card-actions">
+          <button class="btn-danger" data-remove-groomer="${g.id}">Quitar del negocio</button>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+document.getElementById("groomers-list").addEventListener("click", async (e) => {
+  const removeId = e.target.dataset.removeGroomer;
+  if (!removeId) return;
+  if (!confirm("¿Quitar a este groomer del negocio? Ya no podrá entrar a Pelukan (su cuenta de acceso no se borra, solo pierde el vínculo con tu negocio).")) return;
+  await sb.from("profiles").delete().eq("id", removeId);
+  await loadGroomers();
+  renderGroomers();
+});
+
+document.getElementById("btn-new-groomer").addEventListener("click", () => {
+  openModal(`
+    <h3>Nuevo groomer</h3>
+    <form class="modal-form" id="groomer-form">
+      <label>Nombre completo <input type="text" id="groomer-full-name" required /></label>
+      <label>Correo (con el que va a entrar a Pelukan) <input type="email" id="groomer-email" required /></label>
+      <label>Contraseña <input type="password" id="groomer-password" required minlength="6" /></label>
+      <p class="form-hint">Dale estos datos al groomer para que pueda iniciar sesión. No hay confirmación por correo, la cuenta queda lista de inmediato.</p>
+      <p class="form-error" id="groomer-form-error" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="groomer-cancel">Cancelar</button>
+        <button type="submit" class="btn-primary">Crear cuenta</button>
+      </div>
+    </form>
+  `);
+  document.getElementById("groomer-cancel").addEventListener("click", closeModal);
+  document.getElementById("groomer-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById("groomer-form-error");
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    try {
+      const resp = await fetch("/api/create-groomer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          fullName: document.getElementById("groomer-full-name").value.trim(),
+          email: document.getElementById("groomer-email").value.trim(),
+          password: document.getElementById("groomer-password").value,
+        }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) {
+        errorEl.textContent = result.error || "No se pudo crear la cuenta";
+        errorEl.hidden = false;
+        submitBtn.disabled = false;
+        return;
+      }
+    } catch (err) {
+      errorEl.textContent =
+        "No se pudo contactar al servidor. Si estás probando en localhost, esto solo funciona una vez desplegado en Vercel.";
+      errorEl.hidden = false;
+      submitBtn.disabled = false;
+      return;
+    }
+
+    closeModal();
+    await loadGroomers();
+    renderGroomers();
+  });
+});
 
 // ============================================================
 // Utilidades
