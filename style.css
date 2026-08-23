@@ -9,9 +9,10 @@
    ============================================================ */
 
 :root {
-  --color-bg: #f4faf9;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-border: #dcece9;
+  --color-track: #eef5f4;
+  --color-border: #e3edeb;
   --color-text: #1f2a28;
   --color-text-muted: #75857f;
   --color-primary: #14b8a6;
@@ -76,7 +77,7 @@ h3 { font-size: 1.15em; }
 
 .subtitle { color: var(--color-text-muted); text-align: center; margin-top: 0; margin-bottom: 24px; }
 
-.auth-tabs { display: flex; gap: 6px; margin-bottom: 22px; background: var(--color-bg); border-radius: var(--radius-sm); padding: 4px; }
+.auth-tabs { display: flex; gap: 6px; margin-bottom: 22px; background: var(--color-track); border-radius: var(--radius-sm); padding: 4px; }
 .auth-tab {
   flex: 1;
   padding: 9px;
@@ -220,9 +221,9 @@ button { font-family: var(--font-body); }
 .card-main strong { font-size: 1.05em; font-family: var(--font-display); font-weight: 700; }
 .card-meta { font-size: 0.85em; color: var(--color-text-muted); }
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.card-photo { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; background: var(--color-bg); border: 1px solid var(--color-border); }
+.card-photo { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; background: var(--color-track); border: 1px solid var(--color-border); }
 .card-row { display: flex; gap: 12px; align-items: center; }
-.photo-preview { width: 90px; height: 90px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--color-border); background: var(--color-bg); }
+.photo-preview { width: 90px; height: 90px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--color-border); background: var(--color-track); }
 
 .badge {
   display: inline-block;
@@ -230,7 +231,7 @@ button { font-family: var(--font-body); }
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
-  background: var(--color-bg);
+  background: var(--color-track);
   color: var(--color-text-muted);
 }
 .badge.pending { background: var(--color-primary-soft); color: var(--color-primary-dark); }
@@ -257,7 +258,7 @@ button { font-family: var(--font-body); }
 
 .status-select { font-size: 0.85em; padding: 6px 9px; border-radius: var(--radius-sm); font-weight: 600; }
 
-.seg-tabs { display: flex; gap: 6px; max-width: 220px; margin-bottom: 16px; background: var(--color-bg); border-radius: var(--radius-sm); padding: 4px; }
+.seg-tabs { display: flex; gap: 6px; max-width: 220px; margin-bottom: 16px; background: var(--color-track); border-radius: var(--radius-sm); padding: 4px; }
 .seg-tab {
   flex: 1;
   padding: 7px;
@@ -321,9 +322,9 @@ button { font-family: var(--font-body); }
 /* ---------- Tabla (catálogo) ---------- */
 .data-table { width: 100%; border-collapse: collapse; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
 .data-table th, .data-table td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--color-border); font-size: 0.92em; }
-.data-table th { background: var(--color-bg); color: var(--color-text-muted); font-weight: 700; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.03em; }
+.data-table th { background: var(--color-track); color: var(--color-text-muted); font-weight: 700; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.03em; }
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tbody tr:hover { background: var(--color-bg); }
+.data-table tbody tr:hover { background: var(--color-track); }
 
 /* ---------- Modal ---------- */
 .modal-overlay {
