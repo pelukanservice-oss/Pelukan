@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pelukan</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============ PANTALLA DE AUTENTICACIÓN ============ -->
+  <section id="auth-screen">
+    <div class="auth-card">
+      <h1>🐾 Pelukan</h1>
+      <p class="subtitle">Gestión para peluquerías y estéticas caninas</p>
+
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-tab="login">Iniciar sesión</button>
+        <button type="button" class="auth-tab" data-tab="signup">Registrar mi negocio</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label>Correo
+          <input type="email" id="login-email" required autocomplete="username" />
+        </label>
+        <label>Contraseña
+          <input type="password" id="login-password" required autocomplete="current-password" />
+        </label>
+        <p class="form-error" id="login-error" hidden></p>
+        <button type="submit" class="btn-primary">Entrar</button>
+      </form>
+
+      <form id="signup-form" class="auth-form" hidden>
+        <label>Nombre de tu negocio
+          <input type="text" id="signup-business-name" required placeholder="Ej. Estética Huellitas" />
+        </label>
+        <label>Tu nombre
+          <input type="text" id="signup-full-name" required />
+        </label>
+        <label>Correo
+          <input type="email" id="signup-email" required autocomplete="username" />
+        </label>
+        <label>Contraseña
+          <input type="password" id="signup-password" required minlength="6" autocomplete="new-password" />
+        </label>
+        <p class="form-hint">Esta cuenta queda como <strong>dueño(a)</strong> del negocio. Al personal (groomers) lo das de alta tú después, desde el panel.</p>
+        <p class="form-error" id="signup-error" hidden></p>
+        <button type="submit" class="btn-primary">Crear mi negocio</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ APP PRINCIPAL (oculta hasta iniciar sesión) ============ -->
+  <section id="main-screen" hidden>
+    <header class="topbar">
+      <h1>🐾 Pelukan</h1>
+      <div class="topbar-user">
+        <span id="user-info"></span>
+        <button type="button" id="logout-btn" class="btn-link">Salir</button>
+      </div>
+    </header>
+
+    <nav class="main-nav">
+      <button type="button" class="nav-btn active" data-view="fichas">Fichas</button>
+      <button type="button" class="nav-btn" data-view="catalogo">Catálogo de servicios</button>
+      <button type="button" class="nav-btn" data-view="calendario">Calendario</button>
+      <button type="button" class="nav-btn owner-only" data-view="finanzas">Finanzas</button>
+      <button type="button" class="nav-btn owner-only" data-view="personal">Personal</button>
+    </nav>
+
+    <main class="view-container">
+
+      <!-- ---------- FICHAS ---------- -->
+      <section id="view-fichas" class="view">
+        <div class="view-header">
+          <h2>Fichas</h2>
+          <button type="button" id="btn-new-ficha" class="btn-primary">+ Nueva ficha</button>
+        </div>
+
+        <div id="pending-review-panel" class="panel owner-only" hidden>
+          <h3>Pendientes de revisión</h3>
+          <div id="pending-review-list" class="card-list"></div>
+        </div>
+
+        <div id="fichas-list" class="card-list"></div>
+      </section>
+
+      <!-- ---------- CATÁLOGO ---------- -->
+      <section id="view-catalogo" class="view" hidden>
+        <div class="view-header">
+          <h2>Catálogo de servicios</h2>
+          <button type="button" id="btn-new-service" class="btn-primary owner-only">+ Nuevo servicio</button>
+        </div>
+        <table class="data-table" id="services-table">
+          <thead>
+            <tr>
+              <th>Servicio</th>
+              <th>Duración</th>
+              <th>Precio</th>
+              <th class="owner-only">Costo estimado</th>
+              <th class="owner-only">Margen</th>
+              <th class="owner-only"></th>
+            </tr>
+          </thead>
+          <tbody id="services-tbody"></tbody>
+        </table>
+      </section>
+
+      <!-- ---------- CALENDARIO ---------- -->
+      <section id="view-calendario" class="view" hidden>
+        <div class="view-header">
+          <h2>Calendario</h2>
+          <button type="button" id="btn-new-appointment" class="btn-primary owner-only">+ Nueva cita</button>
+        </div>
+        <div class="day-nav">
+          <button type="button" class="btn-secondary" id="day-prev">◀</button>
+          <div class="day-nav-label">
+            <strong id="day-label">—</strong>
+            <button type="button" class="btn-link" id="day-today">Hoy</button>
+          </div>
+          <button type="button" class="btn-secondary" id="day-next">▶</button>
+        </div>
+        <div id="appointments-list" class="card-list"></div>
+      </section>
+
+      <!-- ---------- MÓDULOS AÚN NO CONSTRUIDOS ---------- -->
+      <section id="view-finanzas" class="view" hidden>
+        <div class="view-header">
+          <h2>Finanzas</h2>
+          <button type="button" id="btn-new-transaction" class="btn-primary">+ Nuevo movimiento</button>
+        </div>
+        <div class="day-nav">
+          <button type="button" class="btn-secondary" id="month-prev">◀</button>
+          <div class="day-nav-label">
+            <strong id="month-label">—</strong>
+            <button type="button" class="btn-link" id="month-today">Mes actual</button>
+          </div>
+          <button type="button" class="btn-secondary" id="month-next">▶</button>
+        </div>
+        <div class="summary-cards">
+          <div class="summary-card"><span class="summary-label">Ingresos</span><span class="summary-value" id="sum-ingresos">$0.00</span></div>
+          <div class="summary-card"><span class="summary-label">Egresos</span><span class="summary-value" id="sum-egresos">$0.00</span></div>
+          <div class="summary-card"><span class="summary-label">Balance</span><span class="summary-value" id="sum-balance">$0.00</span></div>
+          <div class="summary-card"><span class="summary-label">Margen de servicios</span><span class="summary-value" id="sum-margin">$0.00</span></div>
+        </div>
+        <div id="transactions-list" class="card-list"></div>
+      </section>
+      <section id="view-personal" class="view" hidden>
+        <h2>Personal</h2>
+        <p class="coming-soon">Este módulo se construye en el siguiente paso (necesita una función de backend para crear cuentas de groomer de forma segura).</p>
+      </section>
+
+    </main>
+  </section>
+
+  <!-- ============ MODAL genérico (fichas / servicios / revisión) ============ -->
+  <div id="modal-overlay" class="modal-overlay" hidden>
+    <div class="modal" id="modal-box"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
