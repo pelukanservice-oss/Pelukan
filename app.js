@@ -1058,6 +1058,13 @@ function openNewAppointmentModal(preselectPetId) {
         </select>
       </label>
       <label>Fecha <input type="date" id="appt-date" required value="${defaultDate}" /></label>
+      <div class="mini-cal-nav">
+        <button type="button" class="btn-link" id="appt-heatmap-prev">◀</button>
+        <span id="appt-heatmap-label"></span>
+        <button type="button" class="btn-link" id="appt-heatmap-next">▶</button>
+      </div>
+      <div id="appt-date-heatmap" class="month-grid mini"></div>
+      <p class="form-hint"><span class="dot dot-green"></span> hay espacio &nbsp; <span class="dot dot-orange"></span> queda poco &nbsp; <span class="dot dot-red"></span> sin espacio</p>
       <label>Hora
         <select id="appt-time" required>
           <option value="">— Primero elige servicio —</option>
@@ -1085,10 +1092,100 @@ function openNewAppointmentModal(preselectPetId) {
       document.getElementById("appt-price").value = opt.dataset.price;
     }
     refreshAppointmentTimeSlots();
+    renderApptDateHeatmap();
   });
-  document.getElementById("appt-duration").addEventListener("change", () => refreshAppointmentTimeSlots());
-  document.getElementById("appt-date").addEventListener("change", () => refreshAppointmentTimeSlots());
-  document.getElementById("appt-groomer").addEventListener("change", () => refreshAppointmentTimeSlots());
+  document.getElementById("appt-duration").addEventListener("change", () => {
+    refreshAppointmentTimeSlots();
+    renderApptDateHeatmap();
+  });
+  document.getElementById("appt-date").addEventListener("change", () => {
+    apptHeatmapMonth = new Date(document.getElementById("appt-date").value + "T00:00:00");
+    refreshAppointmentTimeSlots();
+    renderApptDateHeatmap();
+  });
+  document.getElementById("appt-groomer").addEventListener("change", () => {
+    refreshAppointmentTimeSlots();
+    renderApptDateHeatmap();
+  });
+
+  // ---- mini-calendario de disponibilidad por día ----
+  let apptHeatmapMonth = new Date(defaultDate + "T00:00:00");
+
+  document.getElementById("appt-heatmap-prev").addEventListener("click", () => {
+    apptHeatmapMonth = new Date(apptHeatmapMonth.getFullYear(), apptHeatmapMonth.getMonth() - 1, 1);
+    renderApptDateHeatmap();
+  });
+  document.getElementById("appt-heatmap-next").addEventListener("click", () => {
+    apptHeatmapMonth = new Date(apptHeatmapMonth.getFullYear(), apptHeatmapMonth.getMonth() + 1, 1);
+    renderApptDateHeatmap();
+  });
+  document.getElementById("appt-date-heatmap").addEventListener("click", (e) => {
+    const dayEl = e.target.closest(".month-day[data-day]");
+    if (!dayEl) return;
+    const picked = new Date(apptHeatmapMonth.getFullYear(), apptHeatmapMonth.getMonth(), Number(dayEl.dataset.day));
+    document.getElementById("appt-date").value = picked.toISOString().slice(0, 10);
+    refreshAppointmentTimeSlots();
+    renderApptDateHeatmap();
+  });
+
+  async function renderApptDateHeatmap() {
+    const grid = document.getElementById("appt-date-heatmap");
+    const duration = Number(document.getElementById("appt-duration").value) || 0;
+    document.getElementById("appt-heatmap-label").textContent = MONTH_LABEL_FORMAT.format(apptHeatmapMonth);
+    if (!duration) {
+      grid.innerHTML = '<p class="coming-soon">Elige un servicio para ver disponibilidad</p>';
+      return;
+    }
+
+    const groomerId = document.getElementById("appt-groomer").value || null;
+    const { startISO, endISO } = monthBoundsISO(apptHeatmapMonth);
+    const { data } = await sb
+      .from("appointments")
+      .select("scheduled_at, duration_minutes, groomer_id")
+      .neq("status", "cancelado")
+      .gte("scheduled_at", startISO)
+      .lt("scheduled_at", endISO);
+
+    const opens = (currentBusiness?.opens_at || "09:00").slice(0, 5);
+    const closes = (currentBusiness?.closes_at || "18:00").slice(0, 5);
+    const [openH, openM] = opens.split(":").map(Number);
+    const [closeH, closeM] = closes.split(":").map(Number);
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+    const maxSlots = Math.max(1, Math.floor((closeMinutes - openMinutes - duration) / 15) + 1);
+
+    const busyByDay = {};
+    (data ?? []).forEach((a) => {
+      if (groomerId && a.groomer_id !== groomerId) return; // con groomer elegido, solo cuenta SU agenda
+      const d = new Date(a.scheduled_at);
+      const day = d.getDate();
+      const startMin = d.getHours() * 60 + d.getMinutes();
+      (busyByDay[day] ??= []).push({ start: startMin, end: startMin + a.duration_minutes });
+    });
+
+    const year = apptHeatmapMonth.getFullYear();
+    const month = apptHeatmapMonth.getMonth();
+    const firstDayOfWeek = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    let html = WEEKDAY_LABELS.map((l) => `<div class="weekday-label">${l}</div>`).join("");
+    for (let i = 0; i < firstDayOfWeek; i++) html += `<div class="month-day is-empty"></div>`;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const busy = busyByDay[day] || [];
+      let free = 0;
+      for (let t = openMinutes; t + duration <= closeMinutes; t += 15) {
+        if (!busy.some((b) => t < b.end && t + duration > b.start)) free++;
+      }
+      const ratio = free / maxSlots;
+      const level = free === 0 ? "red" : ratio <= 0.34 ? "orange" : "green";
+      const dateStr = new Date(year, month, day).toISOString().slice(0, 10);
+      html += `<div class="month-day level-${level} ${dateStr === todayStr ? "is-today" : ""}" data-day="${day}"><span>${day}</span></div>`;
+    }
+    grid.innerHTML = html;
+  }
+  renderApptDateHeatmap();
 
   document.getElementById("appointment-cancel").addEventListener("click", closeModal);
   document.getElementById("appointment-form").addEventListener("submit", async (e) => {

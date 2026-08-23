@@ -299,6 +299,18 @@ button { font-family: var(--font-body); }
 .month-day.is-empty { visibility: hidden; cursor: default; }
 .month-day .count-badge { font-size: 0.68em; font-weight: 700; background: var(--color-primary); color: #fff; border-radius: 999px; padding: 1px 6px; }
 
+.month-grid.mini { gap: 4px; margin-bottom: 6px; }
+.month-grid.mini .month-day { font-size: 0.78em; aspect-ratio: 1/0.85; }
+.month-day.level-green { background: var(--color-success-soft); border-color: #cfe3d4; color: var(--color-success); font-weight: 700; }
+.month-day.level-orange { background: #fdefd9; border-color: #f6dba8; color: #a5710f; font-weight: 700; }
+.month-day.level-red { background: var(--color-danger-soft); border-color: #f3cec6; color: var(--color-danger); font-weight: 700; }
+.mini-cal-nav { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 0.85em; font-weight: 700; text-transform: capitalize; margin-top: -4px; }
+
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+.dot-green { background: var(--color-success); }
+.dot-orange { background: #c98a1a; }
+.dot-red { background: var(--color-danger); }
+
 /* ---------- Finanzas ---------- */
 .summary-cards {
   display: grid;
