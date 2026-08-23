@@ -137,6 +137,10 @@ async function bootAfterLogin() {
     .eq("id", profile.business_id)
     .single();
   currentBusiness = business;
+  if (currentBusiness) {
+    document.getElementById("business-opens").value = (currentBusiness.opens_at || "09:00").slice(0, 5);
+    document.getElementById("business-closes").value = (currentBusiness.closes_at || "18:00").slice(0, 5);
+  }
 
   document.body.classList.toggle("is-groomer", !isOwner());
   document.getElementById("user-info").textContent =
@@ -189,6 +193,20 @@ function closeModal() {
 modalOverlay.addEventListener("click", (e) => {
   if (e.target === modalOverlay) closeModal();
 });
+
+// ============================================================
+// FOTOS (Supabase Storage, bucket "photos")
+// ============================================================
+
+async function uploadPhoto(file, path) {
+  if (!file) return null;
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const fullPath = `${currentProfile.business_id}/${path}.${ext}`;
+  const { error } = await sb.storage.from("photos").upload(fullPath, file, { upsert: true });
+  if (error) throw error;
+  const { data } = sb.storage.from("photos").getPublicUrl(fullPath);
+  return data.publicUrl;
+}
 
 // ============================================================
 // FICHAS
@@ -283,14 +301,21 @@ function renderFichas() {
         p.review_status === "pending"
           ? '<span class="badge pending">pendiente de revisión</span>'
           : "";
+      const photoImg = p.photo_url
+        ? `<img class="card-photo" src="${p.photo_url}" alt="Foto de ${escapeHtml(p.name)}" />`
+        : "";
       return `
       <div class="card">
-        <div class="card-main">
-          <strong>${escapeHtml(p.name)}</strong> ${statusBadge}
-          <span class="card-meta">Dueño: ${escapeHtml(p.pet_owners?.full_name ?? "?")} · ${escapeHtml(contactLine)}</span>
-          <span class="card-meta">${escapeHtml(p.breed || "raza no especificada")} · ${escapeHtml(p.size || "")} ${p.allergies ? "· ⚠ " + escapeHtml(p.allergies) : ""}</span>
+        <div class="card-row">
+          ${photoImg}
+          <div class="card-main">
+            <strong>${escapeHtml(p.name)}</strong> ${statusBadge}
+            <span class="card-meta">Dueño: ${escapeHtml(p.pet_owners?.full_name ?? "?")} · ${escapeHtml(contactLine)}</span>
+            <span class="card-meta">${escapeHtml(p.breed || "raza no especificada")} · ${escapeHtml(p.size || "")} ${p.allergies ? "· ⚠ " + escapeHtml(p.allergies) : ""}</span>
+          </div>
         </div>
         <div class="card-actions">
+          <button class="btn-secondary" data-view-history="${p.id}">Ver historial</button>
           <button class="btn-secondary" data-propose-edit="${p.id}">Proponer cambio</button>
         </div>
       </div>`;
@@ -325,6 +350,7 @@ function openNewFichaModal() {
       </div>
 
       <p class="fieldset-title">Datos de la mascota</p>
+      <label>Foto (opcional) <input type="file" id="pet-photo" accept="image/*" /></label>
       <label>Nombre <input type="text" id="pet-name" required /></label>
       <label>Raza <input type="text" id="pet-breed" /></label>
       <label>Tamaño
@@ -404,7 +430,21 @@ async function submitNewFicha(e) {
     }
   }
 
+  const petId = crypto.randomUUID();
+  const photoFile = document.getElementById("pet-photo").files[0];
+  let photoUrl = null;
+  if (photoFile) {
+    try {
+      photoUrl = await uploadPhoto(photoFile, `pets/${petId}`);
+    } catch (err) {
+      errorEl.textContent = "No se pudo subir la foto: " + err.message;
+      errorEl.hidden = false;
+      return;
+    }
+  }
+
   const { error: petError } = await sb.from("pets").insert({
+    id: petId,
     business_id: currentProfile.business_id,
     pet_owner_id: petOwnerId,
     name: document.getElementById("pet-name").value.trim(),
@@ -413,6 +453,7 @@ async function submitNewFicha(e) {
     age_years: document.getElementById("pet-age").value || null,
     temperament: document.getElementById("pet-temperament").value.trim(),
     allergies: document.getElementById("pet-allergies").value.trim(),
+    photo_url: photoUrl,
     review_status: reviewStatus,
     created_by: currentProfile.id,
   });
@@ -473,6 +514,45 @@ document.getElementById("pending-review-list").addEventListener("click", async (
       .eq("id", rejectEditId);
     await loadFichas();
   }
+});
+
+// ---- Ver historial de servicios de una ficha ----
+document.getElementById("fichas-list").addEventListener("click", async (e) => {
+  const petId = e.target.dataset.viewHistory;
+  if (!petId) return;
+  const pet = fichasCache.find((p) => p.id === petId);
+  const { data: history, error } = await sb
+    .from("appointments")
+    .select("scheduled_at, service_notes, result_photo_url, services(name)")
+    .eq("pet_id", petId)
+    .eq("status", "completado")
+    .order("scheduled_at", { ascending: false });
+  if (error) {
+    console.error(error);
+    return;
+  }
+  const rows = (history ?? [])
+    .map((h) => {
+      const date = new Date(h.scheduled_at).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+      const photo = h.result_photo_url ? `<img class="card-photo" src="${h.result_photo_url}" alt="Resultado" />` : "";
+      return `
+      <div class="card">
+        <div class="card-row">
+          ${photo}
+          <div class="card-main">
+            <strong>${date} — ${escapeHtml(h.services?.name ?? "Servicio")}</strong>
+            <span class="card-meta">${escapeHtml(h.service_notes || "sin notas")}</span>
+          </div>
+        </div>
+      </div>`;
+    })
+    .join("");
+  openModal(`
+    <h3>Historial — ${escapeHtml(pet?.name ?? "")}</h3>
+    <div class="card-list">${rows || '<p class="coming-soon">Todavía no tiene servicios completados.</p>'}</div>
+    <div class="modal-actions"><button type="button" class="btn-secondary" id="history-close">Cerrar</button></div>
+  `);
+  document.getElementById("history-close").addEventListener("click", closeModal);
 });
 
 // ---- Proponer cambio a una ficha existente ----
@@ -715,6 +795,82 @@ document.getElementById("day-today").addEventListener("click", () => {
   loadAppointments();
 });
 
+// ---- Vista de mes (para ver disponibilidad en otros días) ----
+let calMonthDate = new Date();
+const WEEKDAY_LABELS = ["D", "L", "M", "M", "J", "V", "S"];
+
+document.getElementById("cal-mode-day").addEventListener("click", () => {
+  document.getElementById("cal-mode-day").classList.add("active");
+  document.getElementById("cal-mode-month").classList.remove("active");
+  document.getElementById("cal-day-view").hidden = false;
+  document.getElementById("cal-month-view").hidden = true;
+});
+document.getElementById("cal-mode-month").addEventListener("click", () => {
+  document.getElementById("cal-mode-month").classList.add("active");
+  document.getElementById("cal-mode-day").classList.remove("active");
+  document.getElementById("cal-day-view").hidden = true;
+  document.getElementById("cal-month-view").hidden = false;
+  loadMonthGrid();
+});
+document.getElementById("cal-month-prev").addEventListener("click", () => {
+  calMonthDate = new Date(calMonthDate.getFullYear(), calMonthDate.getMonth() - 1, 1);
+  loadMonthGrid();
+});
+document.getElementById("cal-month-next").addEventListener("click", () => {
+  calMonthDate = new Date(calMonthDate.getFullYear(), calMonthDate.getMonth() + 1, 1);
+  loadMonthGrid();
+});
+
+async function loadMonthGrid() {
+  const { startISO, endISO } = monthBoundsISO(calMonthDate);
+  const { data, error } = await sb
+    .from("appointments")
+    .select("scheduled_at")
+    .neq("status", "cancelado")
+    .gte("scheduled_at", startISO)
+    .lt("scheduled_at", endISO);
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const countsByDay = {};
+  (data ?? []).forEach((a) => {
+    const d = new Date(a.scheduled_at).getDate();
+    countsByDay[d] = (countsByDay[d] || 0) + 1;
+  });
+
+  document.getElementById("cal-month-label").textContent = MONTH_LABEL_FORMAT.format(calMonthDate);
+
+  const year = calMonthDate.getFullYear();
+  const month = calMonthDate.getMonth();
+  const firstDayOfWeek = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+
+  let html = WEEKDAY_LABELS.map((l) => `<div class="weekday-label">${l}</div>`).join("");
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    html += `<div class="month-day is-empty"></div>`;
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+    const count = countsByDay[day];
+    html += `<div class="month-day ${isToday ? "is-today" : ""}" data-day="${day}">
+      <span>${day}</span>
+      ${count ? `<span class="count-badge">${count}</span>` : ""}
+    </div>`;
+  }
+  document.getElementById("month-grid").innerHTML = html;
+}
+
+document.getElementById("month-grid").addEventListener("click", (e) => {
+  const dayEl = e.target.closest(".month-day[data-day]");
+  if (!dayEl) return;
+  selectedDate = new Date(calMonthDate.getFullYear(), calMonthDate.getMonth(), Number(dayEl.dataset.day));
+  loadAppointments();
+  document.getElementById("cal-mode-day").click();
+});
+
 document.getElementById("appointments-list").addEventListener("change", async (e) => {
   const apptId = e.target.dataset.statusFor;
   if (!apptId) return;
@@ -722,9 +878,53 @@ document.getElementById("appointments-list").addEventListener("change", async (e
   await sb.from("appointments").update({ status: newStatus }).eq("id", apptId);
   if (newStatus === "completado") {
     await autoCreateIncomeForAppointment(apptId);
+    await loadAppointments();
+    openServiceDetailsModal(apptId);
+    return;
   }
   await loadAppointments();
 });
+
+// Al completar una cita, ofrece capturar qué se hizo + foto del resultado,
+// para tenerlo de referencia en la ficha del perro la próxima visita.
+function openServiceDetailsModal(apptId) {
+  const appt = appointmentsCache.find((a) => a.id === apptId);
+  openModal(`
+    <h3>Detalles del servicio — ${escapeHtml(appt?.pets?.name ?? "")}</h3>
+    <form class="modal-form" id="service-details-form">
+      <label>¿Qué se le hizo? (para la próxima visita)
+        <textarea id="service-notes" rows="3">${escapeHtml(appt?.service_notes || "")}</textarea>
+      </label>
+      <label>Foto del resultado (opcional) <input type="file" id="service-photo" accept="image/*" /></label>
+      <p class="form-hint">Puedes omitirlo y agregarlo después desde el historial de la ficha.</p>
+      <p class="form-error" id="service-details-error" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="service-details-skip">Omitir por ahora</button>
+        <button type="submit" class="btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+  document.getElementById("service-details-skip").addEventListener("click", closeModal);
+  document.getElementById("service-details-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById("service-details-error");
+    const notes = document.getElementById("service-notes").value.trim();
+    const photoFile = document.getElementById("service-photo").files[0];
+    let photoUrl = appt?.result_photo_url || null;
+    if (photoFile) {
+      try {
+        photoUrl = await uploadPhoto(photoFile, `appointments/${apptId}`);
+      } catch (err) {
+        errorEl.textContent = "No se pudo subir la foto: " + err.message;
+        errorEl.hidden = false;
+        return;
+      }
+    }
+    await sb.from("appointments").update({ service_notes: notes, result_photo_url: photoUrl }).eq("id", apptId);
+    closeModal();
+    await loadAppointments();
+  });
+}
 
 // Al completar una cita, registra el ingreso automáticamente en Finanzas
 // (si no existe ya uno ligado a esa cita) para no capturarlo dos veces.
@@ -812,17 +1012,54 @@ function openNewAppointmentModal() {
   document.getElementById("appointment-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const errorEl = document.getElementById("appointment-form-error");
+    errorEl.hidden = true;
     const date = document.getElementById("appt-date").value;
     const time = document.getElementById("appt-time").value;
+    const durationMinutes = Number(document.getElementById("appt-duration").value);
+    const groomerId = document.getElementById("appt-groomer").value || null;
     const scheduledAt = new Date(`${date}T${time}:00`);
+    const scheduledEnd = new Date(scheduledAt.getTime() + durationMinutes * 60000);
+
+    // 1. Dentro del horario del negocio ("turno")
+    const opens = currentBusiness?.opens_at?.slice(0, 5) || "00:00";
+    const closes = currentBusiness?.closes_at?.slice(0, 5) || "23:59";
+    const endTimeStr = scheduledEnd.toTimeString().slice(0, 5);
+    if (time < opens || endTimeStr > closes) {
+      errorEl.textContent = `El negocio abre de ${opens} a ${closes}. Esta cita (termina ${endTimeStr}) queda fuera de ese horario.`;
+      errorEl.hidden = false;
+      return;
+    }
+
+    // 2. El groomer elegido no puede tener ya otra cita encimada ese horario
+    if (groomerId) {
+      const { startISO: dayStart, endISO: dayEnd } = dayBoundsISO(scheduledAt);
+      const { data: sameDay } = await sb
+        .from("appointments")
+        .select("scheduled_at, duration_minutes, pets(name)")
+        .eq("groomer_id", groomerId)
+        .neq("status", "cancelado")
+        .gte("scheduled_at", dayStart)
+        .lt("scheduled_at", dayEnd);
+      const conflict = (sameDay ?? []).find((a) => {
+        const existingStart = new Date(a.scheduled_at);
+        const existingEnd = new Date(existingStart.getTime() + a.duration_minutes * 60000);
+        return existingStart < scheduledEnd && existingEnd > scheduledAt;
+      });
+      if (conflict) {
+        const groomerName = groomersCache.find((g) => g.id === groomerId)?.full_name ?? "Ese groomer";
+        errorEl.textContent = `${groomerName} ya tiene una cita (${escapeHtml(conflict.pets?.name ?? "otro perro")}) en ese horario. Elige otro groomer o cambia la hora.`;
+        errorEl.hidden = false;
+        return;
+      }
+    }
 
     const { error } = await sb.from("appointments").insert({
       business_id: currentProfile.business_id,
       pet_id: document.getElementById("appt-pet").value,
       service_id: document.getElementById("appt-service").value,
-      groomer_id: document.getElementById("appt-groomer").value || null,
+      groomer_id: groomerId,
       scheduled_at: scheduledAt.toISOString(),
-      duration_minutes: Number(document.getElementById("appt-duration").value),
+      duration_minutes: durationMinutes,
       price_charged: Number(document.getElementById("appt-price").value),
       created_by: currentProfile.id,
     });
@@ -1030,6 +1267,23 @@ document.getElementById("groomers-list").addEventListener("click", async (e) => 
   await sb.from("profiles").delete().eq("id", removeId);
   await loadGroomers();
   renderGroomers();
+});
+
+document.getElementById("business-hours-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const opens = document.getElementById("business-opens").value;
+  const closes = document.getElementById("business-closes").value;
+  const { error } = await sb
+    .from("businesses")
+    .update({ opens_at: opens, closes_at: closes })
+    .eq("id", currentProfile.business_id);
+  const savedEl = document.getElementById("business-hours-saved");
+  if (!error) {
+    currentBusiness.opens_at = opens;
+    currentBusiness.closes_at = closes;
+    savedEl.hidden = false;
+    setTimeout(() => (savedEl.hidden = true), 2000);
+  }
 });
 
 document.getElementById("btn-new-groomer").addEventListener("click", () => {

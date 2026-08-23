@@ -160,6 +160,9 @@ input, select, textarea {
 .card-main strong { font-size: 1.05em; }
 .card-meta { font-size: 0.85em; color: var(--color-text-muted); }
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.card-photo { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--color-bg); border: 1px solid var(--color-border); }
+.card-row { display: flex; gap: 12px; align-items: center; }
+.photo-preview { width: 90px; height: 90px; border-radius: 8px; object-fit: cover; border: 1px solid var(--color-border); background: var(--color-bg); }
 
 .badge {
   display: inline-block;
@@ -192,6 +195,43 @@ input, select, textarea {
 .day-nav-label strong { text-transform: capitalize; }
 
 .status-select { font-size: 0.85em; padding: 5px 8px; }
+
+.seg-tabs { display: flex; gap: 8px; max-width: 220px; margin-bottom: 14px; }
+.seg-tab {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9em;
+}
+.seg-tab.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.month-grid .weekday-label { text-align: center; font-size: 0.75em; color: var(--color-text-muted); padding-bottom: 4px; }
+.month-day {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.month-day:hover { border-color: var(--color-primary); }
+.month-day.is-today { border-color: var(--color-primary); border-width: 2px; font-weight: 700; }
+.month-day.is-empty { visibility: hidden; cursor: default; }
+.month-day .count-badge { font-size: 0.7em; background: var(--color-primary); color: #fff; border-radius: 999px; padding: 1px 6px; }
 
 /* ---------- Finanzas ---------- */
 .summary-cards {

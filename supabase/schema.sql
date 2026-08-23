@@ -24,6 +24,8 @@ create table businesses (
     check (subscription_status in ('trialing', 'active', 'past_due', 'canceled')),
   stripe_customer_id text,
   stripe_subscription_id text,
+  opens_at time not null default '09:00',   -- horario general del negocio ("turno")
+  closes_at time not null default '18:00',
   created_at timestamptz not null default now()
 );
 
@@ -157,6 +159,8 @@ create table appointments (
   price_charged numeric(10,2) not null, -- copiado del servicio, editable (descuentos)
   status text not null default 'agendado'
     check (status in ('agendado', 'confirmado', 'en_proceso', 'completado', 'cancelado', 'no_show')),
+  service_notes text,       -- qué se le hizo exactamente, para referencia en la próxima visita
+  result_photo_url text,    -- foto del resultado del servicio
   created_by uuid references profiles(id),
   created_at timestamptz not null default now()
 );
@@ -292,3 +296,26 @@ create policy "appointments: solo dueño elimina" on appointments
 -- transactions: panel financiero solo visible/editable por el dueño
 create policy "transactions: solo dueño" on transactions
   for all using (business_id = current_business_id() and current_role_name() = 'owner');
+
+-- ============================================================
+-- Almacenamiento de fotos (fichas de mascotas + resultado de servicio)
+-- Carpetas dentro del bucket: photos/{business_id}/...
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('photos', 'photos', true)
+on conflict (id) do nothing;
+
+create policy "photos: lectura pública" on storage.objects
+  for select using (bucket_id = 'photos');
+
+create policy "photos: solo el negocio sube a su carpeta" on storage.objects
+  for insert with check (
+    bucket_id = 'photos'
+    and (storage.foldername(name))[1] = current_business_id()::text
+  );
+
+create policy "photos: solo el negocio borra de su carpeta" on storage.objects
+  for delete using (
+    bucket_id = 'photos'
+    and (storage.foldername(name))[1] = current_business_id()::text
+  );
