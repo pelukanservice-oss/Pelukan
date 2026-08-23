@@ -46,10 +46,10 @@ h3 { font-size: 1.15em; }
 
 /* ---------- Logo / marca ---------- */
 .brand-logo { display: flex; align-items: center; gap: 10px; color: var(--color-primary); }
-.brand-logo svg { width: 34px; height: 34px; flex-shrink: 0; }
+.brand-logo img { width: 34px; height: 34px; flex-shrink: 0; object-fit: contain; }
 .brand-wordmark { font-family: var(--font-display); font-weight: 800; font-size: 1.3em; color: var(--color-text); letter-spacing: -0.01em; }
 .brand-logo-lg { justify-content: center; margin-bottom: 6px; }
-.brand-logo-lg svg { width: 56px; height: 56px; }
+.brand-logo-lg img { width: 64px; height: 64px; }
 .brand-logo-lg .brand-wordmark { font-size: 1.9em; }
 
 /* ---------- Auth screen ---------- */
