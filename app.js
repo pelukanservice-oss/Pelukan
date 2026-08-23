@@ -964,7 +964,71 @@ document.getElementById("appointments-list").addEventListener("click", async (e)
   await loadAppointments();
 });
 
-document.getElementById("btn-new-appointment").addEventListener("click", openNewAppointmentModal);
+document.getElementById("btn-new-appointment").addEventListener("click", () => openNewAppointmentModal());
+
+// Calcula y llena las horas disponibles del <select> de la cita, según el
+// horario del negocio, la duración del servicio elegido, y (si hay un
+// groomer seleccionado) sus citas ya existentes ese día — así solo se
+// pueden elegir horarios donde el servicio de verdad cabe.
+async function refreshAppointmentTimeSlots() {
+  const timeSelect = document.getElementById("appt-time");
+  if (!timeSelect) return;
+  const previousValue = timeSelect.value;
+  const dateStr = document.getElementById("appt-date").value;
+  const duration = Number(document.getElementById("appt-duration").value) || 0;
+  const groomerId = document.getElementById("appt-groomer").value || null;
+
+  if (!dateStr || !duration) {
+    timeSelect.innerHTML = '<option value="">— Primero elige servicio —</option>';
+    return;
+  }
+
+  const opens = (currentBusiness?.opens_at || "09:00").slice(0, 5);
+  const closes = (currentBusiness?.closes_at || "18:00").slice(0, 5);
+  const [openH, openM] = opens.split(":").map(Number);
+  const [closeH, closeM] = closes.split(":").map(Number);
+  const openMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+
+  let busy = [];
+  if (groomerId) {
+    const { startISO, endISO } = dayBoundsISO(new Date(`${dateStr}T00:00:00`));
+    const { data } = await sb
+      .from("appointments")
+      .select("scheduled_at, duration_minutes")
+      .eq("groomer_id", groomerId)
+      .neq("status", "cancelado")
+      .gte("scheduled_at", startISO)
+      .lt("scheduled_at", endISO);
+    busy = (data ?? []).map((a) => {
+      const start = new Date(a.scheduled_at);
+      const startMin = start.getHours() * 60 + start.getMinutes();
+      return { start: startMin, end: startMin + a.duration_minutes };
+    });
+  }
+
+  const STEP_MINUTES = 15;
+  const slots = [];
+  for (let t = openMinutes; t + duration <= closeMinutes; t += STEP_MINUTES) {
+    const overlaps = busy.some((b) => t < b.end && t + duration > b.start);
+    if (!overlaps) slots.push(t);
+  }
+
+  const toHHMM = (mins) =>
+    `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+
+  if (slots.length === 0) {
+    timeSelect.innerHTML = '<option value="">Sin horarios disponibles ese día</option>';
+    return;
+  }
+
+  timeSelect.innerHTML = slots
+    .map((t) => {
+      const val = toHHMM(t);
+      return `<option value="${val}" ${val === previousValue ? "selected" : ""}>${val}</option>`;
+    })
+    .join("");
+}
 
 function openNewAppointmentModal(preselectPetId) {
   const approvedPets = fichasCache.filter((p) => p.review_status === "approved");
@@ -994,7 +1058,11 @@ function openNewAppointmentModal(preselectPetId) {
         </select>
       </label>
       <label>Fecha <input type="date" id="appt-date" required value="${defaultDate}" /></label>
-      <label>Hora <input type="time" id="appt-time" required value="10:00" /></label>
+      <label>Hora
+        <select id="appt-time" required>
+          <option value="">— Primero elige servicio —</option>
+        </select>
+      </label>
       <label>Duración (minutos) <input type="number" id="appt-duration" required min="1" /></label>
       <label>Precio a cobrar <input type="number" id="appt-price" required min="0" step="0.01" /></label>
       <p class="form-error" id="appointment-form-error" hidden></p>
@@ -1016,7 +1084,11 @@ function openNewAppointmentModal(preselectPetId) {
       document.getElementById("appt-duration").value = opt.dataset.duration;
       document.getElementById("appt-price").value = opt.dataset.price;
     }
+    refreshAppointmentTimeSlots();
   });
+  document.getElementById("appt-duration").addEventListener("change", () => refreshAppointmentTimeSlots());
+  document.getElementById("appt-date").addEventListener("change", () => refreshAppointmentTimeSlots());
+  document.getElementById("appt-groomer").addEventListener("change", () => refreshAppointmentTimeSlots());
 
   document.getElementById("appointment-cancel").addEventListener("click", closeModal);
   document.getElementById("appointment-form").addEventListener("submit", async (e) => {
