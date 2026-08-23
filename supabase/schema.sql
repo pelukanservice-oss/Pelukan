@@ -60,6 +60,29 @@ returns text language sql stable security definer set search_path = public as $$
   select role from profiles where id = auth.uid()
 $$;
 
+-- 2b. Ficha de personal (igual que Todo Guau, sin nómina) -------------------
+-- Separada de profiles a propósito: full_name lo ve cualquiera del negocio
+-- (se necesita para asignar citas), pero esto es sensible (médico, CURP,
+-- contacto de emergencia) — un groomer ve su propia ficha, nunca la de
+-- sus compañeros.
+create table staff_details (
+  profile_id uuid primary key references profiles(id) on delete cascade,
+  business_id uuid not null references businesses(id) on delete cascade,
+  phone text,
+  birth_date date,
+  address text,
+  curp text,
+  emergency_contact_name text,
+  emergency_contact_phone text,
+  blood_type text,
+  medical_conditions text,
+  medications text,
+  allergies text,
+  notes text,
+  status text not null default 'activo' check (status in ('activo', 'inactivo')),
+  updated_at timestamptz not null default now()
+);
+
 -- 3. Dueños de mascotas (clientes del negocio) -------------------------------
 -- OJO: a propósito NO tiene teléfono/domicilio/correo aquí — eso vive en
 -- pet_owner_contacts (tabla 3b) con su propio permiso, para que un groomer
@@ -192,6 +215,7 @@ create index transactions_occurred_on_idx on transactions(occurred_on);
 
 alter table businesses enable row level security;
 alter table profiles enable row level security;
+alter table staff_details enable row level security;
 alter table pet_owners enable row level security;
 alter table pet_owner_contacts enable row level security;
 alter table pets enable row level security;
@@ -225,6 +249,19 @@ create policy "profiles: solo dueño edita personal" on profiles
   for update using (current_role_name() = 'owner' and business_id = current_business_id());
 create policy "profiles: solo dueño elimina personal" on profiles
   for delete using (current_role_name() = 'owner' and business_id = current_business_id());
+
+-- staff_details: dueño ve/edita todo, groomer solo ve la SUYA (nunca la de compañeros)
+create policy "staff_details: dueño ve todo, groomer ve lo suyo" on staff_details
+  for select using (
+    business_id = current_business_id()
+    and (current_role_name() = 'owner' or profile_id = auth.uid())
+  );
+create policy "staff_details: solo dueño crea" on staff_details
+  for insert with check (business_id = current_business_id() and current_role_name() = 'owner');
+create policy "staff_details: solo dueño edita" on staff_details
+  for update using (business_id = current_business_id() and current_role_name() = 'owner');
+create policy "staff_details: solo dueño elimina" on staff_details
+  for delete using (business_id = current_business_id() and current_role_name() = 'owner');
 
 -- pet_owners: mismo negocio ve/crea; el dueño aprueba en firme, o el autor
 -- puede seguir editando mientras esté pendiente de revisión

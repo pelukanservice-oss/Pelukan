@@ -1254,6 +1254,7 @@ function renderGroomers() {
       <div class="card">
         <div class="card-main"><strong>${escapeHtml(g.full_name)}</strong> <span class="card-meta">Groomer</span></div>
         <div class="card-actions">
+          <button class="btn-secondary" data-edit-groomer-ficha="${g.id}">Ver/editar ficha</button>
           <button class="btn-danger" data-remove-groomer="${g.id}">Quitar del negocio</button>
         </div>
       </div>`
@@ -1263,12 +1264,96 @@ function renderGroomers() {
 
 document.getElementById("groomers-list").addEventListener("click", async (e) => {
   const removeId = e.target.dataset.removeGroomer;
-  if (!removeId) return;
-  if (!confirm("¿Quitar a este groomer del negocio? Ya no podrá entrar a Pelukan (su cuenta de acceso no se borra, solo pierde el vínculo con tu negocio).")) return;
-  await sb.from("profiles").delete().eq("id", removeId);
-  await loadGroomers();
-  renderGroomers();
+  const editId = e.target.dataset.editGroomerFicha;
+
+  if (removeId) {
+    if (!confirm("¿Quitar a este groomer del negocio? Ya no podrá entrar a Pelukan (su cuenta de acceso no se borra, solo pierde el vínculo con tu negocio).")) return;
+    await sb.from("profiles").delete().eq("id", removeId);
+    await loadGroomers();
+    renderGroomers();
+    return;
+  }
+
+  if (editId) {
+    await openGroomerFichaModal(editId);
+  }
 });
+
+// ---- Ficha completa del groomer (igual a la de personal en Todo Guau,
+// sin la sección de compensación/nómina) ----
+async function openGroomerFichaModal(profileId) {
+  const groomer = groomersCache.find((g) => g.id === profileId);
+  const { data: details } = await sb.from("staff_details").select("*").eq("profile_id", profileId).maybeSingle();
+  const d = details || {};
+
+  openModal(`
+    <h3>Ficha de personal — ${escapeHtml(groomer?.full_name ?? "")}</h3>
+    <form class="modal-form" id="groomer-ficha-form">
+      <p class="fieldset-title">Datos del groomer</p>
+      <label>Teléfono <input type="tel" id="gf-phone" value="${escapeHtml(d.phone || "")}" /></label>
+      <label>Fecha de nacimiento <input type="date" id="gf-birth-date" value="${d.birth_date || ""}" /></label>
+      <label>Domicilio <input type="text" id="gf-address" value="${escapeHtml(d.address || "")}" /></label>
+      <label>CURP <input type="text" id="gf-curp" value="${escapeHtml(d.curp || "")}" /></label>
+
+      <p class="fieldset-title">Contacto de emergencia</p>
+      <label>Nombre y relación <input type="text" id="gf-emergency-name" placeholder='Ej. "Lourdes, mamá"' value="${escapeHtml(d.emergency_contact_name || "")}" /></label>
+      <label>Teléfono <input type="tel" id="gf-emergency-phone" value="${escapeHtml(d.emergency_contact_phone || "")}" /></label>
+
+      <p class="fieldset-title">Médico</p>
+      <label>Tipo de sangre <input type="text" id="gf-blood-type" placeholder="Ej. O+" value="${escapeHtml(d.blood_type || "")}" /></label>
+      <label>Condiciones médicas <textarea id="gf-medical-conditions" rows="2">${escapeHtml(d.medical_conditions || "")}</textarea></label>
+      <label>Medicamentos <textarea id="gf-medications" rows="2">${escapeHtml(d.medications || "")}</textarea></label>
+      <label>Alergias <textarea id="gf-allergies" rows="2">${escapeHtml(d.allergies || "")}</textarea></label>
+
+      <p class="fieldset-title">Otro</p>
+      <label>Notas <textarea id="gf-notes" rows="2">${escapeHtml(d.notes || "")}</textarea></label>
+      <label>Estado
+        <select id="gf-status">
+          <option value="activo" ${d.status !== "inactivo" ? "selected" : ""}>Activo</option>
+          <option value="inactivo" ${d.status === "inactivo" ? "selected" : ""}>Inactivo</option>
+        </select>
+      </label>
+
+      <p class="form-error" id="groomer-ficha-error" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="groomer-ficha-cancel">Cancelar</button>
+        <button type="submit" class="btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById("groomer-ficha-cancel").addEventListener("click", closeModal);
+  document.getElementById("groomer-ficha-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById("groomer-ficha-error");
+    const { error } = await sb.from("staff_details").upsert(
+      {
+        profile_id: profileId,
+        business_id: currentProfile.business_id,
+        phone: document.getElementById("gf-phone").value.trim(),
+        birth_date: document.getElementById("gf-birth-date").value || null,
+        address: document.getElementById("gf-address").value.trim(),
+        curp: document.getElementById("gf-curp").value.trim(),
+        emergency_contact_name: document.getElementById("gf-emergency-name").value.trim(),
+        emergency_contact_phone: document.getElementById("gf-emergency-phone").value.trim(),
+        blood_type: document.getElementById("gf-blood-type").value.trim(),
+        medical_conditions: document.getElementById("gf-medical-conditions").value.trim(),
+        medications: document.getElementById("gf-medications").value.trim(),
+        allergies: document.getElementById("gf-allergies").value.trim(),
+        notes: document.getElementById("gf-notes").value.trim(),
+        status: document.getElementById("gf-status").value,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "profile_id" }
+    );
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.hidden = false;
+      return;
+    }
+    closeModal();
+  });
+}
 
 function updateBusinessHoursSummary() {
   const opens = (currentBusiness?.opens_at || "09:00").slice(0, 5);
