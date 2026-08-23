@@ -164,11 +164,17 @@
       <section id="view-personal" class="view" hidden>
         <div class="panel">
           <h3>Horario del negocio</h3>
-          <form id="business-hours-form" class="modal-form" style="max-width:320px">
+          <div id="business-hours-summary" class="card-row">
+            <span>Abre de <strong id="business-hours-summary-text">—</strong></span>
+            <button type="button" class="btn-secondary" id="business-hours-edit-btn">Editar</button>
+          </div>
+          <form id="business-hours-form" class="modal-form" style="max-width:320px" hidden>
             <label>Abre <input type="time" id="business-opens" required /></label>
             <label>Cierra <input type="time" id="business-closes" required /></label>
-            <button type="submit" class="btn-secondary" style="align-self:flex-start">Guardar horario</button>
-            <span class="form-hint" id="business-hours-saved" hidden>Guardado ✓</span>
+            <div class="modal-actions" style="justify-content:flex-start">
+              <button type="submit" class="btn-primary">Guardar horario</button>
+              <button type="button" class="btn-secondary" id="business-hours-cancel-btn">Cancelar</button>
+            </div>
           </form>
         </div>
         <div class="view-header">

@@ -140,6 +140,7 @@ async function bootAfterLogin() {
   if (currentBusiness) {
     document.getElementById("business-opens").value = (currentBusiness.opens_at || "09:00").slice(0, 5);
     document.getElementById("business-closes").value = (currentBusiness.closes_at || "18:00").slice(0, 5);
+    updateBusinessHoursSummary();
   }
 
   document.body.classList.toggle("is-groomer", !isOwner());
@@ -1269,6 +1270,24 @@ document.getElementById("groomers-list").addEventListener("click", async (e) => 
   renderGroomers();
 });
 
+function updateBusinessHoursSummary() {
+  const opens = (currentBusiness?.opens_at || "09:00").slice(0, 5);
+  const closes = (currentBusiness?.closes_at || "18:00").slice(0, 5);
+  document.getElementById("business-hours-summary-text").textContent = `${opens} a ${closes}`;
+}
+
+function toggleBusinessHoursForm(editing) {
+  document.getElementById("business-hours-summary").hidden = editing;
+  document.getElementById("business-hours-form").hidden = !editing;
+}
+
+document.getElementById("business-hours-edit-btn").addEventListener("click", () => toggleBusinessHoursForm(true));
+document.getElementById("business-hours-cancel-btn").addEventListener("click", () => {
+  document.getElementById("business-opens").value = (currentBusiness.opens_at || "09:00").slice(0, 5);
+  document.getElementById("business-closes").value = (currentBusiness.closes_at || "18:00").slice(0, 5);
+  toggleBusinessHoursForm(false);
+});
+
 document.getElementById("business-hours-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const opens = document.getElementById("business-opens").value;
@@ -1277,12 +1296,11 @@ document.getElementById("business-hours-form").addEventListener("submit", async 
     .from("businesses")
     .update({ opens_at: opens, closes_at: closes })
     .eq("id", currentProfile.business_id);
-  const savedEl = document.getElementById("business-hours-saved");
   if (!error) {
     currentBusiness.opens_at = opens;
     currentBusiness.closes_at = closes;
-    savedEl.hidden = false;
-    setTimeout(() => (savedEl.hidden = true), 2000);
+    updateBusinessHoursSummary();
+    toggleBusinessHoursForm(false);
   }
 });
 
